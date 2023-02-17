@@ -1,4 +1,4 @@
-# ENCHANTED IMAGE SHRINKER V2.0
+# ENCHANTED IMAGE SHRINKER V2.0 :framed_picture:
 
 A terminal program to change image ratio with using Seam Carving. There are two different shortest path algorithms which are optimized first-level greedy and Dijkstra.
 
