@@ -1,0 +1,17 @@
+madManVO-Dij-MarkedOriginal
+-----------------
+Image dimension: 150x200
+Total pixel: 30000
+TP: 6381
+FP: 1119
+TN: 21381
+FN: 1119
+Sensitivity/TPR:0.8508
+Specificity/TNR:0.9502666666666667
+PPV:0.8508
+NPV:0.9502666666666667
+Accuracy: 0.9254
+
+Success rate is 85.08%
+-----------------
+

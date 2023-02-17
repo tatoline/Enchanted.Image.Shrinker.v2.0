@@ -1,0 +1,17 @@
+madManVO-Gre-MarkedOriginal
+-----------------
+Image dimension: 150x200
+Total pixel: 30000
+TP: 3036
+FP: 4464
+TN: 18036
+FN: 4464
+Sensitivity/TPR:0.4048
+Specificity/TNR:0.8016
+PPV:0.4048
+NPV:0.8016
+Accuracy: 0.7024
+
+Success rate is 40.48%
+-----------------
+

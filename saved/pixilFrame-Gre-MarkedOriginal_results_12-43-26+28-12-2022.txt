@@ -1,0 +1,17 @@
+pixilFrame-Gre-MarkedOriginal
+-----------------
+Image dimension: 50x75
+Total pixel: 3750
+TP: 745
+FP: 505
+TN: 1995
+FN: 505
+Sensitivity/TPR:0.596
+Specificity/TNR:0.798
+PPV:0.596
+NPV:0.798
+Accuracy: 0.73
+
+Success rate is 59.6%
+-----------------
+
