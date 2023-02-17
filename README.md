@@ -9,7 +9,8 @@ A terminal program to change image ratio with using Seam Carving. There are two 
    > exampleObject = RetargetedImage("[IMAGE FULL DIRECTORY]")
 - Determine how many pixels you want to retarget with using ImageRetarget method.
    <br>*eg:*
-   > ImageRetarget(exampleObject, [PIXEL NUMBER], [RETARGET ALGORITHM]) | Retarget Algorithm:  "g" or "greedy" for Greedy, "d" or "dijkstra" for Dijkstra
+   > ImageRetarget(exampleObject, [PIXEL NUMBER], [RETARGET ALGORITHM])
+   > <br>Retarget Algorithm:  "g" or "greedy" for Greedy, "d" or "dijkstra" for Dijkstra
 - Show images you wanted. See below for the methods.
   > showRetargetedImage() = It shows the final product which is retargeted image
   <br>showOriginalImage() = It shows original image
