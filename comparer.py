@@ -1,123 +1,800 @@
-import matplotlib.image as pltim
-import time
+from shapely.geometry import Polygon
+import matplotlib.pyplot as plt
 
-class ImageComparer:
-    supervisedImage = None
-    testImage = None
-    name = None
-    totalPixels = None  # Total pixel number of the image
-    totalSelectedPixels = None  # Correctly selected pixels
-    totalUnselectedPixels = None  # Correctly unselected pixels
-    perfectTotalSelectedPixels = None  # Number of correctly selected pixels if the success rate 100%
-    perfectTotalUnselectedPixels = None  # Number of correctly unselected pixels if the success rate 100%
+# Adjusting coordinates of the retargeted image.
+#   It should be done before IoU because when the width of image is reduced, the coordinates of the important object can be shifted.
+#   The reason of that, the algorithm can delete de previous pixels than the important object's coordinates.
+def adjustCoordinates(originalImageCoordinates, retargetedImageCoordinates):
+    originalImageCoordinates = list(zip(*originalImageCoordinates))  # Transpose process - Rows to column, columns to row.
+    smallestYPostions = [i for i, x in enumerate(originalImageCoordinates[1]) if x == min(originalImageCoordinates[1])]  # Indexes of minimum Y coordinate
+    xValuesInSmallestYPositions = []
+    for x in smallestYPostions:
+        xValuesInSmallestYPositions.append(originalImageCoordinates[0][x])
+    smallestXValueOriginalImage = min(xValuesInSmallestYPositions)
 
-    def __init__(self, supervisedImageDirectory, testImageDirectory):
-        self.supervisedImagePixelPaths = {
-            "selected": [],
-            "unselected": []
-        }
-        self.testImagePixelPaths = {
-            "selected": [],
-            "unselected": []
-        }
-        self.intersectionPixelPaths = {
-            "selected": [],
-            "unselected": []
-        }
-        self.results = {
-            "TP": 0,
-            "FP": 0,
-            "TN": 0,
-            "FN": 0,
-            "Sensitivity": 0,  # TP / (TP + FN) - True Positive Rate
-            "Specificity": 0,  # TN / (TN + FP) - True Negative Rate
-            "PPV": 0,  # TP / (TP + FP) - Positive predictive Value
-            "NPV": 0,  # TN / (TN + FN) - Negative Predictive Value
-            "%": 0
-        }
+    retargetedImageCoordinates = list(zip(*retargetedImageCoordinates))  # Transpose process - Rows to column, columns to row.
+    smallestYPostions = [i for i, x in enumerate(retargetedImageCoordinates[1]) if x == min(retargetedImageCoordinates[1])]  # Indexes of minimum Y coordinate
+    xValuesInSmallestYPositions = []
+    for x in smallestYPostions:
+        xValuesInSmallestYPositions.append(retargetedImageCoordinates[0][x])
+    smallestXValueRetargetedImage = min(xValuesInSmallestYPositions)
 
-        self.supervisedImage = pltim.imread(supervisedImageDirectory)
-        self.testImage = pltim.imread(testImageDirectory)
-        self.name = testImageDirectory.split("/")[-1].split(".")[-2]
-        self.totalPixels = len(self.testImage) * len(self.testImage[0])
-        self.determinePixelPaths()
-        self.perfectTotalSelectedPixels = len(self.supervisedImagePixelPaths["selected"])
-        self.perfectTotalUnselectedPixels = self.totalPixels - self.perfectTotalSelectedPixels
-        self.intersectionPixelPaths["selected"] = self.intersection(self.supervisedImagePixelPaths["selected"],
-                                                                    self.testImagePixelPaths["selected"])
-        self.intersectionPixelPaths["unselected"] = self.intersection(self.supervisedImagePixelPaths["unselected"],
-                                                                    self.testImagePixelPaths["unselected"])
-        self.totalSelectedPixels = len(self.intersectionPixelPaths["selected"])
-        self.totalUnselectedPixels = len(self.intersectionPixelPaths["unselected"])
+    adjustmentNumber = smallestXValueOriginalImage - smallestXValueRetargetedImage
+    originalImageCoordinates = list(zip(*originalImageCoordinates))  # Revert back transpose process
+    originalImageCoordinates = list(map(list, originalImageCoordinates))
 
-        self.results["TP"] = self.totalSelectedPixels
-        self.results["FP"] = self.perfectTotalSelectedPixels -self.totalSelectedPixels
-        self.results["TN"] = self.totalUnselectedPixels
-        self.results["FN"] = self.perfectTotalUnselectedPixels -self.totalUnselectedPixels
-        self.results["Sensitivity"] = self.results["TP"] / (self.results["TP"] + self.results["FN"])
-        self.results["Specificity"] = self.results["TN"] / (self.results["TN"] + self.results["FP"])
-        self.results["PPV"] = self.results["TP"] / (self.results["TP"] + self.results["FP"])
-        self.results["NPV"] = self.results["TN"] / (self.results["TN"] + self.results["FN"])
-        self.results["%"] = (self.results["TP"] * 100) / self.perfectTotalSelectedPixels
+    for i in range(0, len(originalImageCoordinates)):
+        originalImageCoordinates[i][0] -= adjustmentNumber
 
-    def determinePixelPaths(self):
-        for i in range(len(self.supervisedImage)):
-            for j in range(len(self.supervisedImage[i])):  # If the pixel color exactly "red", it's selected, otherwise unselected
-                if self.supervisedImage[i][j][0] == 1 and self.supervisedImage[i][j][1] == 0 and self.supervisedImage[i][j][2] == 0:
-                    self.supervisedImagePixelPaths["selected"].append([i, j])
-                else:
-                    self.supervisedImagePixelPaths["unselected"].append([i, j])
-                if self.testImage[i][j][0] == 1 and self.testImage[i][j][1] == 0 and self.testImage[i][j][2] == 0:
-                    self.testImagePixelPaths["selected"].append([i, j])
-                else:
-                    self.testImagePixelPaths["unselected"].append([i, j])
+    return originalImageCoordinates
 
-    def intersection(self, lst1, lst2):
-        map1 = map(tuple, lst1)
-        map2 = map(tuple, lst2)
-        set1 = set(map1)
-        set2 = set(map2)
-        return list(set1.intersection(set2))
 
-    def showResults(self):
-        resultText = self.name
-        resultText += "\n-----------------"
-        resultText += "\nImage dimension: " + str(len(self.testImage)) + "x" + str(len(self.testImage[0]))
-        resultText += "\nTotal pixel: " + str(self.totalPixels)
-        resultText += "\nTP: " + str(self.results["TP"])
-        resultText += "\nFP: " + str(self.results["FP"])
-        resultText += "\nTN: " + str(self.results["TN"])
-        resultText += "\nFN: " + str(self.results["FN"])
-        resultText += "\nSensitivity/TPR:" + str(self.results["Sensitivity"])
-        resultText += "\nSpecificity/TNR:" + str(self.results["Specificity"])
-        resultText += "\nPPV:" + str(self.results["PPV"])
-        resultText += "\nNPV:" + str(self.results["NPV"])
-        resultText += "\n\nSuccess rate is " + str(self.results["%"]) + "%"
-        resultText += "\n-----------------\n\n"
-        f = open("saved/{}_results_{}.txt".format(self.name, time.strftime("%H-%M-%S+%d-%m-%Y")), "w")
-        f.write(resultText)
-        f.close()
-        print(resultText)
+# Calculation Intersection over Union by given coordinates of original and retargeted images.
+#   Optinally show the results
+def calculateIoU(originalImageCoordinates, retargetedImageCoordinates, show=False, imageName="Unknown Image", method="Unknown Method", save=False, plot=False, forceSave=False):
+    originalImageCoordinates = adjustCoordinates(originalImageCoordinates, retargetedImageCoordinates)
+
+    originalImagePolygon = Polygon(list(map(tuple, originalImageCoordinates)))  # [[x,y],[x,y]] to [(x,y),(x,y)], then create a polygon based on the tuple list
+    retargetedImagePolygon = Polygon(list(map(tuple, retargetedImageCoordinates)))
+
+    intersectionOverUnionDict = {
+        'intersection': originalImagePolygon.intersection(retargetedImagePolygon).area,
+        'union': originalImagePolygon.union(retargetedImagePolygon).area,
+        'iou': None
+    }
+    intersectionOverUnionDict['iou'] = intersectionOverUnionDict['intersection'] / intersectionOverUnionDict['union']
+    if show or save:
+        localText = f"\"{imageName}\" - Intersection over Union - {method}"
+        localText += f"\n  Intersection = {intersectionOverUnionDict['intersection']}"
+        localText += f"\n  Union = {intersectionOverUnionDict['union']}"
+        localText += f"\n  IoU = {intersectionOverUnionDict['iou']}\n"
+        if show:
+            print(localText)
+        if save:
+            global savingText
+            savingText += localText + "\n"
+
+    # Average IoU will be calculated at the end
+    global dijkstraIoU
+    global greedyIoU
+    if method == "Greedy":
+        greedyIoU.append(intersectionOverUnionDict['iou'])
+    elif method == "Dijkstra":
+        dijkstraIoU.append(intersectionOverUnionDict['iou'])
+
+    if plot:
+        plotImagePolygons(originalImageCoordinates, retargetedImageCoordinates, imageName=imageName, method=method, save=save, forceSave=forceSave)
+
+
+def plotImagePolygons(originalImage, retargetedImage, imageName = "Unknown Image", method="Unknown Method", save=False, forceSave=False):
+    plt.figure()
+    plt.title(f"Intersection over Union (IoU)\n\"{imageName}\"")
+
+    if method == "Greedy" or method == "greedy" or method == "G" or method == "g":
+        color = 'orange'
+    else:
+        color = 'pink'
+
+    originalImage.append(
+        originalImage[0])  # Repeat the first point to create a 'closed loop'
+    originalImageX, originalImageY = zip(
+        *originalImage)  # Create lists of x and y values
+    plt.plot(originalImageX, originalImageY, label='Original Image', color='green')
+
+    retargetedImage.append(retargetedImage[0])  # repeat the first point to create a 'closed loop'
+    greedyImageX, greedyImageY = zip(*retargetedImage)
+    plt.plot(greedyImageX, greedyImageY, label=method, color=color)
+
+    plt.legend(loc='best')
+    plt.axis('square')
+    if save or forceSave:
+        plt.savefig(f'saved/IoU/{imageName}_{method}.png')
+    if not forceSave:
+        plt.show()
+    plt.close()
+
+def averageIoU(save=True):
+    global greedyIoU
+    global dijkstraIoU
+    greAverageIoU = sum(greedyIoU) / len(greedyIoU)
+    dijAverageIoU = sum(dijkstraIoU) / len(dijkstraIoU)
+    average = f'\n\nAVERAGE IoU\n  Greedy = {greAverageIoU}\n  Dijkstra = {dijAverageIoU}'
+    print(average)
+    if save:
+        global savingText
+        savingText += average
 
 
 if __name__ == '__main__':
-    supervisedImageDirectory = "assets/mad_mans_and_catsVeryOptimized-Supervised.png"
-    testImageGreedyDirectory = "saved/madManVO-Gre-MarkedOriginal.png"
-    testImageDijkstraDirectory = "saved/madManVO-Dij-MarkedOriginal.png"
 
-    madMansVOGreedy = ImageComparer(supervisedImageDirectory, testImageGreedyDirectory)
-    madMansVODijkstra = ImageComparer(supervisedImageDirectory, testImageDijkstraDirectory)
+    # Saving selected results to a file
+    savingText = ""
 
-    madMansVOGreedy.showResults()
-    madMansVODijkstra.showResults()
+    # Calculation average IoU for both Greedy and Dijkstra
+    dijkstraIoU = []
+    greedyIoU = []
+
+    # For drawing polygons
+    # Original images' supervised polygon coordinates
+    mad_mans_and_catsVeryOptimized = [[2, 0], [2, 16], [3, 16], [3, 22], [4, 22], [4, 28], [5, 28], [5, 30],
+                                          [6, 30], [6, 32], [7, 32], [7, 34],
+                                          [6, 34], [6, 35], [5, 35], [5, 37], [4, 37], [4, 73], [5, 73], [5, 76],
+                                          [6, 76], [6, 78], [7, 78], [7, 81],
+                                          [8, 81], [8, 82], [9, 82], [9, 83], [10, 83], [10, 84], [11, 84], [11, 85],
+                                          [12, 85], [12, 86], [13, 86],
+                                          [13, 87], [30, 87], [30, 88], [31, 88], [31, 93], [30, 93], [30, 94],
+                                          [29, 94], [29, 105], [30, 105],
+                                          [30, 106], [31, 106], [31, 107], [32, 107], [32, 108], [33, 108], [33, 109],
+                                          [34, 109], [34, 129], [43, 129],
+                                          [43, 128], [57, 128], [57, 99], [54, 99], [54, 96], [53, 96], [53, 94],
+                                          [52, 94], [52, 91], [51, 91], [51, 90],
+                                          [50, 90], [50, 85], [49, 85], [49, 83], [48, 83], [48, 81], [47, 81],
+                                          [47, 79], [46, 79], [46, 78], [47, 78],
+                                          [47, 77], [48, 77], [48, 76], [49, 76], [49, 75], [50, 75], [50, 74],
+                                          [51, 74], [51, 73], [52, 73], [52, 72],
+                                          [53, 72], [53, 71], [54, 71], [54, 70], [55, 70], [55, 69], [56, 69],
+                                          [56, 53], [58, 53], [58, 54], [60, 54],
+                                          [60, 55], [62, 55], [62, 56], [65, 56], [65, 57], [68, 57], [68, 58],
+                                          [71, 58], [71, 57], [80, 57], [80, 58],
+                                          [84, 58], [84, 57], [86, 57], [86, 56], [87, 56], [87, 54], [88, 54],
+                                          [88, 52], [89, 52], [89, 49], [90, 49],
+                                          [90, 46], [91, 46], [91, 45], [92, 45], [92, 44], [93, 44], [93, 42],
+                                          [94, 42], [94, 40], [89, 40], [89, 39],
+                                          [88, 39], [88, 38], [87, 38], [87, 34], [85, 34], [85, 35], [84, 35],
+                                          [84, 36], [83, 36], [83, 37], [82, 37],
+                                          [82, 38], [81, 38], [81, 39], [80, 39], [80, 41], [75, 41], [75, 40],
+                                          [73, 40], [73, 39], [71, 39], [71, 37],
+                                          [70, 37], [70, 35], [69, 35], [69, 32], [60, 32], [60, 33], [57, 33],
+                                          [57, 32], [55, 32], [55, 31], [48, 31],
+                                          [48, 32], [47, 32], [47, 31], [46, 31], [46, 30], [47, 30], [47, 27],
+                                          [48, 27], [48, 24], [49, 24], [49, 19],
+                                          [50, 19], [50, 10], [51, 10], [51, 4], [52, 4], [52, 0]]
+    pixilFrame = [[16, 0], [16, 5], [17, 5], [17, 6], [16, 6], [16, 7], [17, 7], [17, 11], [16, 11], [16, 13],
+                      [17, 13], [17, 14], [14, 14], [14, 13], [11, 13], [11, 14], [10, 14], [10, 15], [9, 15], [9, 19],
+                      [10, 19], [10, 20], [11, 20], [11, 21], [10, 21], [10, 22], [8, 22], [8, 24], [7, 24], [7, 26],
+                      [8, 26], [8, 28], [9, 28], [9, 29], [10, 29], [10, 30], [11, 30], [11, 31], [12, 31], [12, 32],
+                      [13, 32], [13, 33], [14, 33], [14, 34], [15, 34], [15, 36], [14, 36], [14, 37], [13, 37],
+                      [13, 38], [14, 38], [14, 40], [15, 40], [15, 41], [14, 41], [14, 44], [16, 44], [16, 46],
+                      [18, 46], [18, 47], [19, 47], [19, 46], [22, 46], [22, 44], [23, 44], [23, 43], [24, 43],
+                      [24, 40], [25, 40], [25, 38], [26, 38], [26, 35], [25, 35], [25, 34], [27, 34], [27, 32],
+                      [28, 32], [28, 30], [30, 30], [30, 29], [31, 29], [31, 28], [32, 28], [32, 27], [33, 27],
+                      [33, 25], [34, 25], [34, 23], [35, 23], [35, 20], [34, 20], [34, 19], [33, 19], [33, 18],
+                      [32, 18], [32, 16], [33, 16], [33, 13], [34, 13], [34, 9], [33, 9], [33, 8], [32, 8], [32, 7],
+                      [29, 7], [29, 8], [28, 8], [28, 9], [27, 9], [27, 10], [26, 10], [26, 12], [25, 12], [25, 14],
+                      [23, 14], [23, 13], [24, 13], [24, 6], [25, 6], [25, 4], [24, 4], [24, 0]]
+    ours_1_aaa = [[3, 0], [2, 2], [38, 124], [65, 187], [108, 212], [132, 212], [135, 210], [140, 237], [134, 243],
+                      [134, 257],
+                      [150, 268], [161, 279], [174, 282], [183, 279], [184, 267], [184, 260], [178, 253], [185, 245],
+                      [203, 176],
+                      [195, 135], [192, 110], [176, 83], [169, 65], [160, 51], [146, 23], [145, 21], [135, 15],
+                      [134, 11], [129, 6],
+                      [121, 3], [115, 2], [115, 0]]
+    ours_2_aaa = [[221, 62], [219, 253], [311, 257], [315, 68]]
+    ours_4_aaa = [[419, 33], [439, 82], [444, 145], [409, 186], [397, 217], [386, 248], [386, 255], [367, 293],
+                      [348, 312],
+                      [335, 355], [394, 443], [400, 450], [422, 484], [441, 491], [442, 493], [450, 493], [453, 491],
+                      [456, 491],
+                      [465, 488], [498, 487], [499, 487], [549, 485], [582, 468], [680, 434], [696, 429], [702, 421],
+                      [705, 409],
+                      [722, 378], [749, 302], [766, 276], [768, 275], [768, 83], [766, 83], [764, 79], [749, 80],
+                      [749, 80],
+                      [730, 81], [727, 81], [726, 79], [725, 79], [724, 81], [705, 80], [704, 81], [688, 82], [687, 80],
+                      [678, 79],
+                      [664, 71], [645, 69], [626, 64], [591, 67], [555, 50], [538, 49], [524, 46], [464, 32], [427, 32],
+                      [426, 33]]
+    ours_5_aaa = [[239, 0], [233, 263], [285, 512], [341, 512], [481, 496], [412, 335], [377, 280], [376, 275],
+                      [382, 271],
+                      [389, 269], [398, 272], [405, 260], [408, 254], [413, 211], [409, 144], [416, 143], [432, 99],
+                      [432, 4],
+                      [431, 0]]
+    ours_6_aaa = [[243, 304], [235, 285], [237, 255], [597, 249], [605, 258], [602, 269], [576, 296], [564, 299],
+                      [552, 301],
+                      [538, 301], [516, 313], [504, 313], [484, 307], [479, 312], [464, 311], [459, 311], [439, 305],
+                      [397, 311],
+                      [351, 304], [336, 303], [317, 302], [306, 301], [284, 301], [247, 302]]
+    ours_8_aaa = [[219, 201], [214, 236], [219, 240], [219, 246], [184, 263], [149, 304], [84, 305], [90, 316],
+                      [204, 449],
+                      [220, 440], [247, 438], [271, 436], [281, 435], [282, 442], [272, 444], [287, 465], [309, 464],
+                      [322, 463],
+                      [337, 445], [335, 440], [335, 428], [384, 427], [388, 433], [397, 430], [397, 422], [430, 395],
+                      [440, 395],
+                      [463, 364], [469, 367], [485, 347], [472, 347], [476, 236], [439, 232], [420, 230], [398, 234],
+                      [331, 231],
+                      [263, 202]]
+    ours_9_aaa = [[106, 60], [110, 231], [98, 231], [38, 241], [111, 322], [72, 338], [211, 489], [562, 375],
+                      [563, 450],
+                      [615, 449], [613, 368], [696, 345], [715, 318], [768, 284], [768, 18], [517, 13]]
+    ours_10_aaa = [[387, 82], [239, 302], [255, 379], [280, 379], [298, 366], [312, 361], [328, 362], [343, 367],
+                       [348, 370],
+                       [384, 371], [407, 374], [428, 373], [473, 366], [551, 359], [597, 352], [614, 351], [625, 351],
+                       [648, 351],
+                       [659, 348], [665, 337], [668, 321], [673, 312], [674, 304], [672, 297], [661, 273], [645, 255],
+                       [629, 232],
+                       [617, 223], [609, 221], [599, 223], [588, 226], [576, 224], [566, 219], [541, 196], [541, 193],
+                       [543, 188],
+                       [548, 180], [549, 167], [547, 154], [532, 123], [524, 102], [516, 95], [503, 90], [463, 86],
+                       [444, 83],
+                       [407, 83], [397, 84], [392, 83], [389, 81]]
+    ours_13_aaa = [[110, 0], [108, 0], [105, 68], [82, 77], [83, 99], [84, 110], [99, 155], [108, 168], [139, 182],
+                       [161, 184],
+                       [155, 246], [164, 259], [197, 275], [206, 275], [215, 270], [224, 255], [234, 245], [231, 236],
+                       [228, 211],
+                       [220, 193], [227, 188], [251, 186], [276, 155], [284, 82], [266, 62], [266, 25], [270, 15],
+                       [266, 0],
+                       [268, 0]]
+    ours_17_aaa = [[175, 9], [188, 30], [227, 66], [256, 46], [258, 42], [279, 44], [297, 55], [306, 77],
+                       [302, 137], [345, 223],
+                       [343, 231], [334, 238], [327, 240], [329, 269], [325, 274], [325, 279], [320, 285], [317, 296],
+                       [315, 296],
+                       [314, 296], [301, 299], [284, 299], [277, 297], [252, 280], [243, 275], [238, 270], [214, 279],
+                       [205, 283],
+                       [194, 290], [187, 291], [182, 290], [173, 283], [166, 279], [166, 276], [159, 261], [154, 244],
+                       [154, 228],
+                       [145, 229], [127, 227], [108, 221], [88, 208], [83, 198], [87, 189], [96, 172], [109, 156],
+                       [122, 147],
+                       [134, 145], [144, 144], [154, 146], [141, 137], [119, 113], [110, 102], [104, 96], [100, 79],
+                       [93, 62],
+                       [98, 63], [112, 65], [150, 83], [145, 65], [147, 41], [158, 29], [166, 15]]
+    ours_18_aaa = [[190, 70], [165, 49], [154, 46], [148, 52], [157, 68], [157, 81], [157, 82], [156, 89],
+                       [149, 103], [147, 110],
+                       [144, 118], [142, 123], [145, 138], [166, 178], [176, 199], [178, 206], [177, 215], [171, 235],
+                       [163, 235],
+                       [155, 229], [140, 223], [125, 219], [110, 212], [107, 214], [105, 214], [105, 213], [102, 210],
+                       [100, 209],
+                       [98, 209], [98, 213], [96, 217], [97, 218], [100, 223], [104, 224], [115, 226], [140, 238],
+                       [146, 241],
+                       [149, 243], [158, 255], [164, 262], [166, 263], [172, 265], [173, 266], [176, 266], [176, 268],
+                       [174, 272],
+                       [170, 278], [170, 296], [179, 306], [190, 308], [201, 301], [201, 292], [202, 283], [201, 279],
+                       [201, 274],
+                       [206, 273], [216, 270], [241, 259], [257, 255], [274, 252], [281, 251], [286, 254], [306, 255],
+                       [314, 255],
+                       [314, 248], [308, 244], [299, 241], [280, 238], [266, 237], [248, 238], [224, 241], [227, 225],
+                       [224, 196],
+                       [225, 177], [219, 177], [211, 150], [208, 149], [204, 135], [204, 130], [208, 128], [207, 122],
+                       [236, 85],
+                       [241, 73], [240, 66], [207, 42], [192, 45], [198, 55], [204, 60], [206, 71], [207, 75],
+                       [204, 82], [180, 116],
+                       [178, 103], [181, 92], [189, 78]]
+    ours_22_aaa = [[102, 99], [80, 176], [21, 229], [4, 269], [35, 292], [51, 298], [61, 310], [61, 321], [57, 339],
+                       [56, 371],
+                       [80, 389], [82, 397], [102, 400], [107, 411], [120, 417], [135, 412], [142, 404], [135, 386],
+                       [158, 362],
+                       [175, 360], [188, 358], [208, 349], [220, 337], [232, 347], [246, 350], [252, 350], [251, 359],
+                       [269, 370],
+                       [311, 331], [310, 316], [293, 323], [287, 300], [332, 286], [353, 331], [341, 347], [363, 357],
+                       [378, 367],
+                       [384, 361], [392, 362], [399, 354], [406, 320], [446, 328], [456, 319], [399, 281], [435, 286],
+                       [448, 293],
+                       [462, 288], [462, 278], [465, 271], [493, 298], [501, 298], [510, 309], [530, 309], [540, 298],
+                       [538, 277],
+                       [569, 288], [581, 286], [583, 249], [597, 213], [614, 205], [639, 189], [671, 166], [634, 88],
+                       [549, 68],
+                       [458, 64], [339, 100], [159, 167], [129, 165], [110, 177]]
+    ours_23_aaa = [[29, 217], [0, 218], [0, 260], [26, 245], [85, 310], [101, 314], [105, 333], [116, 332],
+                       [116, 319],
+                       [146, 318], [149, 333], [163, 331], [166, 320], [185, 316], [186, 323], [188, 326], [194, 325],
+                       [200, 314],
+                       [200, 310], [239, 282], [247, 264], [281, 263], [298, 252], [310, 253], [322, 367], [314, 377],
+                       [320, 410],
+                       [324, 410], [328, 411], [329, 418], [334, 447], [359, 455], [379, 405], [381, 387], [379, 374],
+                       [375, 364],
+                       [381, 329], [375, 324], [384, 241], [430, 256], [451, 259], [498, 238], [503, 220], [481, 196],
+                       [420, 186],
+                       [406, 184], [355, 187], [300, 201], [253, 203], [178, 221]]
+    ours_24_aaa = [[476, 0], [467, 119], [479, 202], [421, 233], [401, 279], [407, 330], [400, 330], [400, 356],
+                       [407, 372],
+                       [427, 393], [429, 393], [487, 412], [556, 403], [607, 387], [632, 364], [667, 321], [688, 256],
+                       [711, 241],
+                       [731, 232], [768, 190], [768, 0]]
+    ours_25_aaa = [[110, 0], [101, 52], [88, 69], [86, 78], [87, 96], [94, 120], [119, 176], [127, 187],
+                       [136, 188], [139, 188],
+                       [148, 179], [149, 174], [160, 149], [164, 136], [190, 181], [196, 187], [205, 186], [213, 185],
+                       [216, 178],
+                       [217, 177], [235, 184], [240, 189], [246, 193], [257, 194], [262, 228], [269, 239], [283, 241],
+                       [292, 237],
+                       [305, 225], [302, 212], [297, 203], [290, 192], [307, 184], [313, 175], [337, 154], [335, 124],
+                       [320, 119],
+                       [311, 83], [313, 70], [317, 60], [322, 55], [318, 42], [320, 0], [284, 0], [277, 30], [261, 29],
+                       [261, 0]]
+    ours_26_aaa = [[292, 295], [283, 285], [279, 269], [270, 248], [269, 232], [263, 227], [230, 211], [174, 219],
+                       [121, 249],
+                       [77, 293], [75, 306], [78, 319], [114, 365], [95, 396], [130, 432], [144, 440], [154, 439],
+                       [177, 433],
+                       [185, 427], [241, 413], [257, 402], [266, 390], [275, 378], [299, 354], [304, 343], [309, 333],
+                       [317, 326],
+                       [318, 324], [362, 337], [381, 345], [385, 345], [393, 341], [436, 315], [442, 309], [449, 294],
+                       [453, 285],
+                       [467, 281], [485, 282], [497, 289], [546, 256], [558, 235], [570, 245], [578, 245], [586, 241],
+                       [595, 235],
+                       [640, 215], [640, 197], [643, 199], [648, 199], [656, 194], [674, 188], [690, 183], [701, 162],
+                       [705, 157],
+                       [707, 150], [706, 143], [687, 117], [685, 108], [687, 87], [649, 101], [620, 154], [620, 129],
+                       [603, 131],
+                       [594, 145], [556, 183], [533, 183], [542, 174], [549, 165], [551, 152], [549, 139], [547, 135],
+                       [521, 136],
+                       [507, 141], [493, 149], [487, 158], [484, 169], [456, 217], [433, 215], [430, 188], [432, 181],
+                       [444, 167],
+                       [440, 163], [419, 160], [401, 160], [379, 168], [370, 174], [332, 212], [319, 250], [310, 277]]
+    ours_27_aaa = [[152, 143], [144, 147], [137, 159], [128, 188], [126, 217], [143, 220], [147, 226], [118, 218],
+                       [154, 234],
+                       [148, 227], [149, 226], [162, 230], [177, 238], [362, 209], [376, 200], [404, 200], [418, 217],
+                       [424, 208],
+                       [433, 208], [460, 217], [489, 221], [506, 221], [524, 214], [527, 215], [552, 181], [556, 177],
+                       [555, 171],
+                       [549, 166], [537, 163], [525, 166], [491, 166], [443, 160], [440, 154], [437, 138], [436, 128],
+                       [431, 123],
+                       [421, 120], [408, 120], [384, 128], [230, 126], [188, 134], [170, 139]]
+    ours_28_aaa = [[413, 168], [371, 203], [341, 215], [341, 236], [368, 278], [342, 319], [354, 339], [373, 347],
+                       [392, 345],
+                       [396, 331], [402, 356], [408, 359], [419, 361], [439, 368], [449, 367], [472, 351], [465, 343],
+                       [462, 334],
+                       [459, 332], [448, 326], [438, 315], [434, 303], [447, 300], [476, 277], [478, 273], [477, 240],
+                       [474, 226],
+                       [449, 229], [423, 251], [413, 251], [403, 229], [402, 198]]
+    ours_30_aaa = [[524, 142], [449, 129], [382, 144], [359, 159], [337, 192], [337, 199], [339, 214], [334, 223],
+                       [321, 236],
+                       [327, 254], [332, 267], [349, 276], [382, 279], [476, 253], [536, 252], [584, 228], [593, 228],
+                       [620, 215],
+                       [628, 206], [648, 173], [647, 165], [638, 153], [633, 141], [615, 132], [581, 129], [538, 140]]
+    ours_31_aaa = [[274, 118], [259, 129], [233, 160], [226, 201], [236, 219], [225, 255], [220, 316], [226, 349],
+                       [236, 360],
+                       [246, 365], [260, 401], [279, 409], [290, 402], [298, 385], [318, 399], [313, 428], [321, 451],
+                       [335, 451],
+                       [349, 441], [355, 416], [358, 390], [366, 352], [374, 327], [374, 310], [377, 294], [382, 275],
+                       [368, 200],
+                       [362, 207], [361, 212], [354, 213], [338, 185], [342, 170], [341, 163], [338, 159], [332, 158],
+                       [327, 159],
+                       [298, 174], [288, 182], [300, 159], [282, 155], [274, 155]]
+    ours_32_aaa = [[264, 250], [257, 284], [275, 301], [282, 302], [324, 303], [333, 300], [356, 280], [363, 265],
+                       [368, 245],
+                       [366, 236], [359, 229], [348, 224], [333, 220], [310, 222], [279, 238]]
+    ours_33_aaa = [[366, 512], [366, 501], [370, 488], [350, 420], [367, 335], [378, 259], [390, 218], [402, 198],
+                       [445, 150],
+                       [460, 137], [489, 105], [510, 88], [537, 81], [568, 80], [594, 83], [611, 95], [628, 133],
+                       [661, 164],
+                       [693, 231], [692, 252], [694, 258], [708, 271], [712, 279], [744, 390], [744, 392], [718, 392],
+                       [715, 417],
+                       [715, 425], [707, 456], [696, 485], [681, 512]]
+    ours_35_aaa = [[768, 214], [479, 182], [460, 200], [454, 210], [416, 240], [369, 253], [360, 248], [196, 306],
+                       [158, 308],
+                       [188, 383], [205, 445], [187, 445], [166, 390], [138, 311], [70, 305], [59, 285], [72, 279],
+                       [85, 278],
+                       [117, 243], [74, 121], [68, 100], [73, 94], [81, 122], [128, 239], [135, 237], [137, 221],
+                       [202, 172],
+                       [106, 175], [114, 167], [204, 151], [206, 146], [201, 142], [197, 122], [171, 91], [167, 68],
+                       [169, 59],
+                       [202, 47], [211, 56], [215, 64], [224, 73], [216, 94], [216, 99], [223, 100], [230, 105],
+                       [222, 125],
+                       [228, 137], [239, 139], [242, 128], [283, 119], [290, 106], [286, 93], [289, 81], [306, 69],
+                       [322, 71],
+                       [344, 67], [350, 71], [358, 98], [426, 88], [415, 77], [405, 56], [405, 39], [408, 20],
+                       [411, 20], [426, 13],
+                       [448, 12], [457, 22], [463, 48], [472, 43], [478, 44], [475, 88], [677, 118], [669, 145],
+                       [768, 166]]
+    ours_11_aaa = [[117, 0], [107, 13], [107, 30], [117, 69], [124, 74], [137, 77], [132, 88], [130, 87], [128, 88],
+                       [130, 107],
+                       [136, 114], [144, 114], [148, 114], [149, 116], [155, 108], [159, 97], [162, 82], [163, 79],
+                       [178, 70],
+                       [185, 62], [184, 50], [183, 34], [182, 21], [181, 10], [181, 5], [183, 0]]
+    ours_14_aaa = [[49, 0], [55, 51], [65, 60], [72, 85], [73, 101], [77, 112], [91, 119], [100, 119], [108, 114],
+                       [119, 96],
+                       [118, 77], [125, 67], [129, 58], [138, 51], [148, 31], [154, 0]]
+    ours_16_aaa = [[62, 0], [61, 5], [69, 21], [58, 53], [59, 68], [65, 94], [74, 107], [79, 109], [84, 113],
+                       [98, 112],
+                       [103, 108], [107, 108], [115, 120], [124, 124], [142, 119], [149, 115], [147, 111], [147, 98],
+                       [144, 94],
+                       [152, 88], [154, 90], [155, 89], [156, 67], [154, 63], [155, 12], [151, 0]]
+
+    # Dijkstra Seam Carving retargeted images supervised coordinates
+    madManVO_Dij_Retargeted = [[1, 0], [1, 26], [2, 26], [2, 28], [3, 28], [3, 30], [4, 30], [4, 33], [3, 33],
+                                   [3, 35], [2, 35], [2, 37],
+                                   [1, 37], [1, 46], [2, 46], [2, 63], [1, 63], [1, 79], [2, 79], [2, 83], [3, 83],
+                                   [3, 84], [4, 84], [4, 85],
+                                   [5, 85], [5, 86], [6, 86], [6, 87], [20, 87], [20, 90], [21, 90], [21, 92], [20, 92],
+                                   [20, 94], [19, 94],
+                                   [19, 104], [20, 104], [20, 105], [21, 105], [21, 106], [22, 106], [22, 108],
+                                   [23, 108], [23, 109], [24, 109],
+                                   [24, 129], [37, 129], [37, 128], [47, 128], [47, 99], [44, 99], [44, 96], [43, 96],
+                                   [43, 94], [42, 94],
+                                   [42, 91], [41, 91], [41, 88], [40, 88], [40, 84], [39, 84], [39, 83], [38, 83],
+                                   [38, 82], [37, 82], [37, 80],
+                                   [36, 80], [36, 78], [37, 78], [37, 77], [38, 77], [38, 76], [39, 76], [39, 75],
+                                   [40, 75], [40, 74], [42, 74],
+                                   [42, 73], [43, 73], [43, 72], [44, 72], [44, 71], [45, 71], [45, 69], [46, 69],
+                                   [46, 53], [49, 53], [49, 54],
+                                   [50, 54], [50, 55], [51, 55], [51, 56], [54, 56], [54, 57], [58, 57], [58, 58],
+                                   [62, 58], [62, 57], [68, 57],
+                                   [68, 58], [74, 58], [74, 56], [76, 56], [76, 55], [77, 55], [77, 51], [78, 51],
+                                   [78, 49], [79, 49], [79, 47],
+                                   [80, 47], [80, 45], [81, 45], [81, 43], [82, 43], [82, 42], [83, 42], [83, 40],
+                                   [78, 40], [78, 38], [76, 38],
+                                   [76, 34], [74, 34], [74, 35], [73, 35], [73, 36], [72, 36], [72, 37], [71, 37],
+                                   [71, 38], [70, 38], [70, 39],
+                                   [69, 39], [69, 40], [66, 40], [66, 39], [61, 39], [61, 38], [60, 38], [60, 35],
+                                   [59, 35], [59, 33], [58, 33],
+                                   [58, 32], [56, 32], [56, 31], [52, 31], [52, 32], [50, 32], [50, 33], [47, 33],
+                                   [47, 32], [45, 32], [45, 31],
+                                   [37, 31], [37, 28], [38, 28], [38, 25], [39, 25], [39, 23], [40, 23], [40, 18],
+                                   [41, 18], [41, 12], [42, 12],
+                                   [42, 6], [43, 6], [43, 0]]
+    pixilFrame_Dij_Retargeted = [[9, 0], [9, 5], [10, 5], [10, 6], [9, 6], [9, 7], [10, 7], [10, 11], [9, 11],
+                                     [9, 13], [10, 13], [10, 14],
+                                     [7, 14], [7, 13], [4, 13], [4, 14], [3, 14], [3, 15], [2, 15], [2, 19], [3, 19],
+                                     [3, 20], [4, 20], [4, 21],
+                                     [3, 21], [3, 22], [1, 22], [1, 24], [0, 24], [0, 26], [1, 26], [1, 31], [2, 31],
+                                     [2, 32], [3, 32], [3, 33],
+                                     [4, 33], [4, 34], [5, 34], [5, 36], [4, 36], [4, 37], [3, 37], [3, 38], [4, 38],
+                                     [4, 40], [5, 40], [5, 41],
+                                     [4, 41], [4, 44], [6, 44], [6, 46], [8, 46], [8, 47], [9, 47], [9, 46], [12, 46],
+                                     [12, 44], [13, 44], [13, 43],
+                                     [14, 43], [14, 40], [15, 40], [15, 38], [16, 38], [16, 35], [15, 35], [15, 34],
+                                     [17, 34], [17, 32], [18, 32],
+                                     [18, 30], [20, 30], [20, 29], [21, 29], [21, 28], [22, 28], [22, 27], [23, 27],
+                                     [23, 25], [24, 25], [24, 23],
+                                     [25, 23], [25, 20], [24, 20], [24, 19], [23, 19], [23, 18], [22, 18], [22, 16],
+                                     [23, 16], [23, 13], [24, 13],
+                                     [24, 9], [23, 9], [23, 8], [22, 8], [22, 7], [19, 7], [19, 8], [18, 8], [18, 9],
+                                     [17, 9], [17, 10], [16, 10],
+                                     [16, 12], [15, 12], [15, 14], [13, 14], [13, 13], [14, 13], [14, 6], [15, 6],
+                                     [15, 4], [14, 4], [14, 0]]
+    ours_11_aaa_optimized_Dijkstra_RetargetedImage = [[99, 0], [91, 8], [87, 13], [86, 27], [94, 69], [98, 73],
+                                                          [103, 75], [107, 75], [107, 78], [103, 87],
+                                                          [101, 87], [99, 98], [99, 103], [98, 108], [102, 114],
+                                                          [112, 115], [115, 110], [119, 96], [120, 80], [122, 75],
+                                                          [137, 63], [139, 59], [137, 48], [137, 12], [139, 0]]
+    ours_14_aaa_optimized_Dijkstra_RetargetedImage = [[45, 0], [45, 25], [49, 50], [56, 58], [62, 79], [63, 98],
+                                                          [66, 111], [78, 118], [86, 119], [93, 114],
+                                                          [98, 104], [100, 94], [98, 80], [98, 71], [100, 67],
+                                                          [102, 57], [108, 42], [114, 0]]
+    ours_16_aaa_optimized_Dijkstra_RetargetedImage = [[57, 0], [55, 6], [57, 18], [57, 26], [51, 55], [52, 66],
+                                                          [58, 97], [65, 110], [71, 114], [81, 112], [83, 107],
+                                                          [85, 107], [90, 115], [90, 119], [97, 122], [100, 121],
+                                                          [107, 117], [109, 114], [109, 99], [110, 97],
+                                                          [109, 95], [109, 91], [113, 87], [115, 68], [114, 52],
+                                                          [115, 45], [114, 25], [108, 0]]
+
+    # Greedy Seam Carving retargeted images supervised coordinates
+    madManVO_Gre_Retargeted = [[1, 0], [1, 27], [2, 27], [2, 30], [3, 30], [3, 33], [4, 33], [4, 35], [3, 35],
+                                   [3, 37], [2, 37], [2, 64],
+                                   [1, 64], [1, 74], [2, 74], [2, 77], [3, 77], [3, 78], [4, 78], [4, 80], [5, 80],
+                                   [5, 82], [6, 82], [6, 83],
+                                   [7, 83], [7, 85], [8, 85], [8, 86], [10, 86], [10, 87], [21, 87], [21, 97], [20, 97],
+                                   [20, 105], [21, 105],
+                                   [21, 106], [22, 106], [22, 107], [23, 107], [23, 108], [24, 108], [24, 109],
+                                   [25, 109], [25, 129], [35, 129],
+                                   [35, 128], [45, 128], [45, 100], [43, 100], [43, 99], [41, 99], [41, 98], [42, 98],
+                                   [42, 96], [41, 96],
+                                   [41, 93], [40, 93], [40, 91], [39, 91], [39, 89], [38, 89], [38, 85], [37, 85],
+                                   [37, 83], [36, 83], [36, 79],
+                                   [35, 79], [35, 78], [36, 78], [36, 77], [37, 77], [37, 76], [38, 76], [38, 75],
+                                   [39, 75], [39, 74], [40, 74],
+                                   [40, 73], [41, 73], [41, 72], [42, 72], [42, 71], [43, 71], [43, 54], [45, 54],
+                                   [45, 55], [46, 55], [46, 56],
+                                   [48, 56], [48, 57], [50, 57], [50, 58], [54, 58], [54, 57], [55, 57], [55, 58],
+                                   [59, 58], [59, 59], [60, 59],
+                                   [60, 58], [61, 58], [61, 56], [62, 56], [62, 55], [63, 55], [63, 53], [64, 53],
+                                   [64, 51], [65, 51], [65, 49],
+                                   [66, 49], [66, 47], [67, 47], [67, 45], [68, 45], [68, 44], [69, 44], [69, 40],
+                                   [65, 40], [65, 39], [64, 39],
+                                   [64, 38], [63, 38], [63, 34], [61, 34], [61, 35], [60, 35], [60, 36], [59, 36],
+                                   [59, 37], [58, 37], [58, 38],
+                                   [56, 38], [56, 39], [52, 39], [52, 38], [51, 38], [51, 33], [50, 33], [50, 32],
+                                   [46, 32], [46, 33], [43, 33],
+                                   [43, 32], [41, 32], [41, 31], [36, 31], [36, 23], [35, 23], [35, 16], [36, 16],
+                                   [36, 9], [37, 9], [37, 0]]
+    pixilFrame_Gre_Retargeted = [[7, 0], [7, 5], [8, 5], [8, 6], [7, 6], [7, 7], [8, 7], [8, 11], [7, 11], [7, 13],
+                                     [8, 13], [8, 14], [5, 14],
+                                     [5, 13], [3, 13], [3, 14], [2, 14], [2, 15], [1, 15], [1, 19], [2, 19], [2, 20],
+                                     [3, 20], [3, 21], [2, 21],
+                                     [2, 22], [0, 22], [0, 29], [1, 29], [1, 30], [2, 30], [2, 31], [3, 31], [3, 32],
+                                     [4, 32], [4, 33], [5, 33],
+                                     [5, 34], [6, 34], [6, 36], [5, 36], [5, 37], [4, 37], [4, 38], [5, 38], [5, 40],
+                                     [6, 40], [6, 41], [5, 41],
+                                     [5, 44], [7, 44], [7, 46], [8, 46], [8, 47], [9, 47], [9, 46], [12, 46], [12, 44],
+                                     [13, 44], [13, 43],
+                                     [14, 43], [14, 40], [15, 40], [15, 38], [16, 38], [16, 35], [15, 35], [15, 34],
+                                     [17, 34], [17, 32], [18, 32],
+                                     [18, 30], [20, 30], [20, 29], [21, 29], [21, 28], [22, 28], [22, 27], [23, 27],
+                                     [23, 25], [24, 25], [24, 23],
+                                     [25, 23], [25, 20], [24, 20], [24, 19], [23, 19], [23, 18], [22, 18], [22, 16],
+                                     [23, 16], [23, 13], [24, 13],
+                                     [24, 9], [23, 9], [23, 8], [22, 8], [22, 7], [19, 7], [19, 8], [18, 8], [18, 9],
+                                     [17, 9], [17, 10], [16, 10],
+                                     [16, 12], [15, 12], [15, 14], [13, 14], [13, 13], [14, 13], [14, 6], [15, 6],
+                                     [15, 4], [14, 4], [14, 0]]
+    ours_1_aaa_Greedy_RetargetedImage = [[0, 0], [2, 34], [34, 131], [56, 189], [89, 211], [106, 211], [112, 209],
+                                             [117, 235], [112, 243], [112, 256],
+                                             [123, 264], [138, 278], [148, 280], [155, 280], [158, 274], [156, 259],
+                                             [150, 253], [150, 251], [156, 244],
+                                             [168, 176], [162, 142], [159, 111], [118, 21], [111, 14], [109, 9],
+                                             [91, 0]]
+    ours_2_aaa_Greedy_RetargetedImage = [[138, 60], [137, 253], [196, 255], [198, 65]]
+    ours_4_aaa_Greedy_RetargetedImage = [[284, 26], [297, 81], [301, 142], [277, 182], [270, 207], [261, 246],
+                                             [254, 275], [242, 303], [234, 314],
+                                             [224, 358], [284, 486], [298, 493], [318, 488], [369, 486], [387, 477],
+                                             [402, 465], [478, 427], [482, 407],
+                                             [492, 381], [506, 297], [512, 280], [512, 77], [468, 76], [461, 77],
+                                             [441, 65], [415, 59], [396, 62],
+                                             [371, 44], [361, 44], [310, 26]]
+    ours_5_aaa_Greedy_RetargetedImage = [[149, 0], [150, 265], [184, 512], [220, 512], [317, 498], [282, 395],
+                                             [268, 345], [241, 276], [245, 270],
+                                             [252, 270], [256, 271], [261, 256], [263, 213], [260, 144], [262, 142],
+                                             [266, 143], [274, 97], [272, 0]]
+    ours_6_aaa_Greedy_RetargetedImage = [[159, 257], [157, 285], [162, 301], [177, 302], [208, 302], [211, 304],
+                                             [228, 305], [255, 312], [282, 302],
+                                             [293, 311], [305, 310], [311, 302], [320, 311], [328, 311], [352, 293],
+                                             [371, 292], [382, 287], [395, 268],
+                                             [395, 258], [391, 250], [381, 252], [368, 251], [344, 253]]
+    ours_8_aaa_Greedy_RetargetedImage = [[109, 307], [66, 309], [144, 448], [155, 437], [200, 437], [200, 443],
+                                             [195, 444], [206, 465], [231, 463],
+                                             [239, 446], [238, 428], [275, 428], [278, 434], [284, 432], [282, 423],
+                                             [305, 395], [312, 396], [325, 365],
+                                             [330, 367], [339, 349], [332, 348], [333, 291], [336, 237], [301, 232],
+                                             [286, 234], [235, 233], [187, 204],
+                                             [154, 202], [154, 239], [158, 240], [157, 249], [134, 265]]
+    ours_9_aaa_Greedy_RetargetedImage = [[512, 23], [351, 16], [81, 62], [78, 235], [66, 234], [26, 244], [81, 324],
+                                             [54, 340], [162, 493], [383, 376],
+                                             [383, 452], [416, 452], [414, 369], [466, 346], [478, 319], [512, 285]]
+    ours_10_aaa_Greedy_RetargetedImage = [[267, 81], [160, 309], [170, 375], [193, 374], [208, 360], [224, 361],
+                                              [241, 369], [290, 375], [365, 365],
+                                              [431, 347], [445, 343], [456, 323], [466, 308], [467, 299], [464, 278],
+                                              [438, 234], [428, 230], [407, 234],
+                                              [395, 228], [374, 203], [373, 196], [378, 185], [376, 168], [349, 108],
+                                              [339, 102], [319, 93], [299, 81],
+                                              [282, 81], [271, 82]]
+    ours_11_aaa_optimized_Greedy_RetargetedImage = [[87, 0], [82, 12], [82, 34], [86, 67], [90, 72], [97, 75],
+                                                        [101, 76], [100, 84], [97, 89], [96, 92], [99, 101],
+                                                        [97, 109], [101, 114], [113, 115], [118, 109], [123, 93],
+                                                        [124, 80], [128, 75], [135, 70], [140, 63],
+                                                        [142, 58], [139, 3], [140, 0]]
+    ours_13_aaa_Greedy_RetargetedImage = [[87, 0], [81, 66], [63, 76], [62, 109], [71, 148], [82, 165], [107, 181],
+                                              [125, 183], [123, 242], [131, 260],
+                                              [157, 275], [165, 275], [169, 272], [174, 263], [176, 257], [185, 244],
+                                              [178, 209], [171, 189], [179, 185],
+                                              [198, 183], [217, 152], [224, 77], [211, 57], [211, 26], [213, 16],
+                                              [216, 11], [212, 4], [212, 0]]
+    ours_14_aaa_optimized_Greedy_RetargetedImage = [[37, 0], [39, 27], [42, 44], [43, 49], [50, 57], [58, 84],
+                                                        [58, 102], [62, 111], [73, 118], [81, 118],
+                                                        [89, 113], [96, 98], [95, 79], [95, 75], [98, 71], [102, 59],
+                                                        [110, 50], [113, 39], [115, 13], [116, 0]]
+    ours_16_aaa_optimized_Greedy_RetargetedImage = [[48, 0], [48, 7], [53, 19], [53, 23], [45, 52], [46, 71],
+                                                        [50, 92], [57, 107], [63, 112], [67, 115], [68, 113],
+                                                        [78, 113], [81, 109], [84, 108], [89, 116], [91, 120],
+                                                        [96, 122], [101, 121], [106, 118], [112, 114],
+                                                        [111, 111], [111, 96], [110, 95], [110, 92], [116, 89],
+                                                        [117, 71], [116, 63], [116, 17], [115, 9], [113, 0]]
+    ours_17_aaa_Greedy_RetargetedImage = [[76, 62], [84, 95], [103, 121], [118, 139], [127, 145], [116, 143],
+                                              [102, 145], [90, 154], [72, 182],
+                                              [67, 198], [73, 208], [90, 220], [102, 225], [118, 228], [126, 227],
+                                              [126, 246], [134, 272], [138, 279],
+                                              [150, 289], [158, 289], [167, 284], [189, 271], [196, 269], [202, 277],
+                                              [208, 279], [231, 297], [241, 298],
+                                              [253, 298], [258, 294], [260, 295], [264, 284], [267, 274], [268, 270],
+                                              [271, 266], [270, 238], [275, 238],
+                                              [282, 232], [284, 222], [248, 135], [253, 83], [249, 66], [244, 54],
+                                              [230, 44], [212, 41], [209, 46],
+                                              [187, 66], [166, 44], [152, 28], [144, 7], [139, 11], [135, 15],
+                                              [128, 31], [120, 42], [119, 57], [120, 69],
+                                              [123, 83], [104, 72], [89, 64]]
+    ours_18_aaa_Greedy_RetargetedImage = [[127, 47], [122, 54], [128, 66], [130, 73], [129, 86], [123, 106],
+                                              [117, 125], [120, 141], [138, 185],
+                                              [145, 203], [146, 212], [141, 236], [134, 236], [128, 231], [112, 224],
+                                              [104, 221], [94, 215], [91, 214],
+                                              [89, 214], [88, 216], [86, 213], [85, 212], [84, 211], [82, 212],
+                                              [81, 218], [82, 220], [84, 225], [96, 228],
+                                              [111, 236], [119, 242], [123, 244], [134, 261], [138, 265], [143, 267],
+                                              [145, 266], [143, 272], [139, 279],
+                                              [139, 296], [142, 301], [148, 307], [151, 307], [154, 309], [156, 309],
+                                              [162, 302], [164, 303], [164, 289],
+                                              [164, 288], [165, 280], [163, 280], [164, 274], [179, 270], [192, 262],
+                                              [203, 256], [214, 255], [226, 252],
+                                              [230, 252], [240, 255], [251, 255], [253, 256], [254, 250], [248, 246],
+                                              [238, 241], [227, 239], [217, 238],
+                                              [204, 239], [192, 241], [187, 243], [183, 242], [185, 222], [182, 192],
+                                              [184, 179], [178, 179], [176, 170],
+                                              [171, 152], [167, 143], [166, 133], [165, 131], [168, 129], [168, 122],
+                                              [190, 89], [194, 75], [195, 67],
+                                              [167, 43], [156, 46], [157, 48], [166, 61], [167, 65], [168, 71],
+                                              [169, 79], [146, 118], [146, 116],
+                                              [146, 100], [154, 78], [155, 72], [135, 50]]
+    ours_22_aaa_Greedy_RetargetedImage = [[61, 105], [47, 178], [6, 230], [0, 252], [0, 275], [15, 293], [26, 299],
+                                              [32, 311], [28, 341], [29, 371],
+                                              [44, 389], [46, 397], [59, 401], [62, 411], [71, 417], [81, 413],
+                                              [84, 405], [80, 386], [96, 362], [113, 361],
+                                              [128, 352], [138, 338], [145, 348], [150, 352], [158, 352], [159, 361],
+                                              [170, 372], [198, 334], [198, 318],
+                                              [186, 325], [183, 300], [214, 288], [227, 334], [219, 349], [236, 361],
+                                              [244, 369], [247, 364], [254, 363],
+                                              [257, 358], [262, 324], [265, 322], [291, 330], [297, 322], [259, 282],
+                                              [273, 285], [285, 288], [293, 294],
+                                              [302, 289], [304, 274], [306, 273], [323, 300], [330, 301], [334, 311],
+                                              [341, 312], [345, 311], [347, 312],
+                                              [355, 301], [354, 288], [355, 279], [374, 290], [382, 289], [386, 250],
+                                              [396, 215], [424, 191], [445, 168],
+                                              [418, 91], [360, 71], [298, 67], [228, 99], [163, 134], [101, 168],
+                                              [79, 167], [77, 171], [67, 179]]
+    ours_23_aaa_Greedy_RetargetedImage = [[0, 220], [0, 259], [15, 246], [56, 313], [68, 316], [72, 334], [79, 333],
+                                              [79, 321], [101, 319], [103, 335],
+                                              [114, 332], [115, 322], [129, 318], [129, 324], [132, 328], [136, 326],
+                                              [140, 312], [167, 284], [173, 266],
+                                              [198, 264], [210, 254], [218, 255], [227, 370], [222, 380], [225, 411],
+                                              [232, 412], [233, 423], [236, 449],
+                                              [253, 457], [261, 433], [268, 405], [269, 382], [265, 365], [269, 331],
+                                              [265, 327], [271, 244], [306, 258],
+                                              [321, 261], [353, 240], [357, 222], [342, 198], [302, 189], [286, 186],
+                                              [268, 187], [250, 189], [214, 203],
+                                              [191, 205], [178, 204], [127, 223], [120, 224], [40, 220], [20, 218]]
+    ours_24_aaa_Greedy_RetargetedImage = [[328, 0], [315, 47], [308, 80], [304, 120], [313, 201], [272, 232],
+                                              [256, 278], [259, 327], [255, 327],
+                                              [253, 344], [253, 356], [258, 367], [273, 387], [278, 388], [314, 408],
+                                              [365, 400], [400, 386], [426, 360],
+                                              [449, 323], [465, 259], [493, 234], [512, 193], [512, 0]]
+    ours_25_aaa_Greedy_RetargetedImage = [[91, 0], [92, 28], [90, 42], [72, 71], [71, 81], [74, 107], [75, 112],
+                                              [99, 175], [106, 186], [116, 187],
+                                              [125, 176], [137, 135], [160, 183], [164, 185], [175, 183], [179, 176],
+                                              [194, 182], [201, 191], [214, 193],
+                                              [216, 226], [223, 239], [232, 239], [244, 234], [253, 224], [248, 207],
+                                              [240, 192], [253, 184], [255, 183],
+                                              [268, 168], [282, 154], [280, 123], [268, 119], [266, 116], [265, 108],
+                                              [261, 96], [259, 78], [263, 63],
+                                              [269, 54], [265, 44], [267, 8], [265, 0], [237, 0], [232, 21], [231, 31],
+                                              [229, 31], [224, 30], [217, 29],
+                                              [217, 0]]
+    ours_26_aaa_Greedy_RetargetedImage = [[124, 217], [90, 246], [57, 293], [56, 302], [60, 320], [84, 365],
+                                              [84, 371], [72, 396], [93, 433], [102, 443],
+                                              [110, 443], [123, 438], [134, 430], [172, 421], [186, 410], [192, 404],
+                                              [200, 388], [217, 366], [222, 358],
+                                              [225, 346], [236, 328], [285, 352], [312, 327], [322, 317], [325, 308],
+                                              [329, 291], [330, 286], [343, 283],
+                                              [354, 284], [360, 290], [389, 254], [394, 234], [401, 242], [405, 244],
+                                              [412, 240], [416, 233], [441, 211],
+                                              [439, 194], [442, 196], [452, 188], [464, 180], [469, 158], [472, 146],
+                                              [471, 142], [459, 112], [459, 84],
+                                              [450, 92], [443, 97], [427, 149], [426, 124], [418, 125], [409, 147],
+                                              [404, 153], [391, 178], [377, 178],
+                                              [385, 161], [387, 145], [385, 130], [381, 129], [368, 129], [356, 138],
+                                              [349, 148], [345, 161], [329, 215],
+                                              [313, 212], [310, 206], [309, 178], [318, 160], [311, 157], [294, 154],
+                                              [283, 158], [268, 167], [264, 176],
+                                              [241, 210], [228, 279], [215, 299], [210, 294], [197, 245], [194, 228],
+                                              [169, 210], [161, 209]]
+    ours_27_aaa_Greedy_RetargetedImage = [[102, 145], [94, 161], [86, 204], [85, 216], [91, 219], [97, 219],
+                                              [98, 224], [97, 226], [81, 218], [81, 219],
+                                              [102, 233], [99, 226], [100, 225], [104, 228], [109, 228], [119, 237],
+                                              [198, 223], [250, 210], [260, 201],
+                                              [281, 202], [290, 216], [294, 209], [303, 209], [317, 217], [338, 221],
+                                              [348, 222], [365, 215], [386, 177],
+                                              [383, 170], [378, 165], [372, 164], [361, 167], [310, 162], [306, 159],
+                                              [304, 125], [298, 117], [289, 116],
+                                              [280, 118], [270, 126], [240, 123], [203, 123], [164, 124]]
+    ours_28_aaa_Greedy_RetargetedImage = [[259, 169], [225, 201], [203, 213], [202, 232], [213, 258], [222, 274],
+                                              [220, 282], [205, 311], [203, 318],
+                                              [213, 338], [230, 347], [241, 345], [245, 335], [245, 330], [247, 330],
+                                              [251, 353], [255, 361], [261, 361],
+                                              [280, 370], [291, 362], [302, 350], [297, 342], [296, 335], [292, 331],
+                                              [289, 330], [277, 315], [272, 302],
+                                              [273, 299], [283, 296], [305, 274], [307, 265], [304, 224], [296, 222],
+                                              [285, 222], [273, 234], [264, 244],
+                                              [257, 245], [250, 225], [250, 207], [250, 192]]
+    ours_30_aaa_Greedy_RetargetedImage = [[248, 144], [231, 160], [216, 193], [218, 215], [214, 225], [205, 236],
+                                              [213, 266], [227, 276], [247, 279],
+                                              [310, 253], [339, 254], [355, 252], [386, 229], [395, 229], [408, 218],
+                                              [415, 214], [434, 170], [419, 138],
+                                              [403, 129], [387, 130], [371, 134], [352, 141], [344, 141], [296, 129],
+                                              [262, 138]]
+    ours_31_aaa_Greedy_RetargetedImage = [[171, 122], [161, 130], [141, 163], [137, 204], [144, 221], [143, 231],
+                                              [135, 260], [132, 317], [136, 352],
+                                              [144, 363], [150, 365], [161, 403], [174, 410], [182, 404], [188, 385],
+                                              [202, 400], [199, 430], [206, 451],
+                                              [216, 453], [228, 441], [237, 361], [244, 327], [246, 297], [250, 277],
+                                              [247, 260], [239, 203], [237, 203],
+                                              [232, 212], [233, 214], [228, 214], [217, 188], [220, 170], [218, 163],
+                                              [215, 159], [210, 160], [188, 177],
+                                              [181, 183], [189, 160], [178, 157], [172, 157]]
+    ours_32_aaa_Greedy_RetargetedImage = [[211, 221], [188, 233], [180, 245], [175, 278], [187, 294], [199, 296],
+                                              [219, 297], [221, 295], [223, 296],
+                                              [231, 288], [240, 275], [243, 266], [247, 239], [246, 231], [238, 227],
+                                              [228, 222], [222, 220]]
+    ours_33_aaa_Greedy_RetargetedImage = [[234, 512], [234, 499], [237, 490], [232, 467], [223, 416], [234, 344],
+                                              [241, 259], [253, 198], [269, 169],
+                                              [324, 91], [340, 77], [361, 73], [381, 76], [393, 81], [409, 94],
+                                              [419, 133], [441, 160], [447, 175],
+                                              [458, 209], [466, 231], [465, 254], [471, 263], [478, 274], [484, 306],
+                                              [502, 391], [499, 392], [483, 392],
+                                              [481, 423], [471, 473], [462, 500], [455, 512]]
+    ours_35_aaa_Greedy_RetargetedImage = [[512, 165], [451, 145], [455, 117], [451, 114], [326, 84], [327, 64],
+                                              [327, 39], [318, 44], [314, 24],
+                                              [310, 11], [306, 7], [290, 9], [286, 15], [281, 16], [281, 51], [289, 73],
+                                              [297, 86], [250, 97], [248, 79],
+                                              [243, 65], [239, 65], [228, 68], [218, 66], [206, 77], [203, 86],
+                                              [203, 97], [206, 103], [201, 119],
+                                              [172, 127], [170, 138], [165, 137], [162, 137], [157, 124], [162, 111],
+                                              [163, 103], [158, 98], [153, 98],
+                                              [155, 85], [158, 75], [157, 71], [152, 63], [148, 53], [142, 47],
+                                              [138, 52], [134, 51], [125, 57], [120, 59],
+                                              [117, 63], [117, 72], [120, 90], [141, 123], [143, 140], [146, 146],
+                                              [142, 152], [107, 159], [76, 167],
+                                              [71, 174], [144, 170], [93, 222], [92, 236], [86, 238], [55, 136],
+                                              [49, 123], [45, 95], [39, 101], [50, 142],
+                                              [78, 243], [51, 278], [42, 279], [32, 285], [42, 305], [95, 312],
+                                              [122, 394], [135, 427], [144, 448],
+                                              [157, 448], [140, 390], [116, 324], [110, 309], [141, 307], [257, 250],
+                                              [264, 254], [295, 241], [308, 227],
+                                              [319, 211], [323, 198], [335, 182], [512, 215]]
 
 
-    supervisedImageDirectory = "assets/pixilFrame-Supervised.png"
-    testImageGreedyDirectory = "saved/pixilFrame-Gre-MarkedOriginal.png"
-    testImageDijkstraDirectory = "saved/pixilFrame-Dij-MarkedOriginal.png"
+    # Intersection over Union
+    calculateIoU(mad_mans_and_catsVeryOptimized, madManVO_Gre_Retargeted, show=True,
+                 imageName="mad_mans_and_catsVeryOptimized", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(mad_mans_and_catsVeryOptimized, madManVO_Dij_Retargeted, show=True,
+                 imageName="mad_mans_and_catsVeryOptimized", method="Dijkstra", plot=True, save=True, forceSave=True)
 
-    pixilFrameGreedy = ImageComparer(supervisedImageDirectory, testImageGreedyDirectory)
-    pixilFrameDijkstra = ImageComparer(supervisedImageDirectory, testImageDijkstraDirectory)
+    calculateIoU(pixilFrame, pixilFrame_Gre_Retargeted, show=True,
+                 imageName="pixilFrame", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(pixilFrame, pixilFrame_Dij_Retargeted, show=True,
+                 imageName="pixilFrame", method="Dijkstra", plot=True, save=True, forceSave=True)
 
-    pixilFrameGreedy.showResults()
-    pixilFrameDijkstra.showResults()
+    calculateIoU(ours_1_aaa, ours_1_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_1_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_2_aaa, ours_2_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_2_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_4_aaa, ours_4_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_4_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_5_aaa, ours_5_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_5_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_6_aaa, ours_6_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_6_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_8_aaa, ours_8_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_8_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_9_aaa, ours_9_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_9_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_10_aaa, ours_10_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_10_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_11_aaa, ours_11_aaa_optimized_Greedy_RetargetedImage, show=True,
+                 imageName="ours_11_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_11_aaa, ours_11_aaa_optimized_Dijkstra_RetargetedImage, show=True,
+                 imageName="ours_11_aaa", method="Dijkstra", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_13_aaa, ours_13_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_13_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_14_aaa, ours_14_aaa_optimized_Greedy_RetargetedImage, show=True,
+                 imageName="ours_14_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_14_aaa, ours_14_aaa_optimized_Dijkstra_RetargetedImage, show=True,
+                 imageName="ours_14_aaa", method="Dijkstra", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_16_aaa, ours_16_aaa_optimized_Greedy_RetargetedImage, show=True,
+                 imageName="ours_16_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_16_aaa, ours_16_aaa_optimized_Dijkstra_RetargetedImage, show=True,
+                 imageName="ours_16_aaa", method="Dijkstra", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_17_aaa, ours_17_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_17_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_18_aaa, ours_18_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_18_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_22_aaa, ours_22_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_22_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_23_aaa, ours_23_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_23_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_24_aaa, ours_24_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_24_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_25_aaa, ours_25_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_25_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_26_aaa, ours_26_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_26_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_27_aaa, ours_27_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_27_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_28_aaa, ours_28_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_28_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_30_aaa, ours_30_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_30_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_31_aaa, ours_31_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_31_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_32_aaa, ours_32_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_32_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_33_aaa, ours_33_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_33_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+    calculateIoU(ours_35_aaa, ours_35_aaa_Greedy_RetargetedImage, show=True,
+                 imageName="ours_35_aaa", method="Greedy", plot=True, save=True, forceSave=True)
+
+    averageIoU()
+    f = open("saved/IoU/IoU_statistics.txt", "w")
+    f.write(savingText)
+    f.close()

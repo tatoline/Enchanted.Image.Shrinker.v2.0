@@ -1,0 +1,170 @@
+"mad_mans_and_catsVeryOptimized" - Intersection over Union - Greedy
+  Intersection = 4125.0
+  Union = 6331.0
+  IoU = 0.6515558363607645
+
+"mad_mans_and_catsVeryOptimized" - Intersection over Union - Dijkstra
+  Intersection = 4668.0
+  Union = 6454.0
+  IoU = 0.7232723892159901
+
+"pixilFrame" - Intersection over Union - Greedy
+  Intersection = 653.0
+  Union = 732.0
+  IoU = 0.8920765027322405
+
+"pixilFrame" - Intersection over Union - Dijkstra
+  Intersection = 569.0
+  Union = 792.0
+  IoU = 0.7184343434343434
+
+"ours_1_aaa" - Intersection over Union - Greedy
+  Intersection = 25298.34672422815
+  Union = 35499.653275771845
+  IoU = 0.7126364454239337
+
+"ours_2_aaa" - Intersection over Union - Greedy
+  Intersection = 11314.589491655765
+  Union = 17769.910508344234
+  IoU = 0.6367274323831154
+
+"ours_4_aaa" - Intersection over Union - Greedy
+  Intersection = 98718.08876999817
+  Union = 145698.4112300018
+  IoU = 0.677550893908927
+
+"ours_5_aaa" - Intersection over Union - Greedy
+  Intersection = 57751.58417085427
+  Union = 91719.91582914573
+  IoU = 0.6296515173262144
+
+"ours_6_aaa" - Intersection over Union - Greedy
+  Intersection = 11112.125325934545
+  Union = 19077.87467406545
+  IoU = 0.5824613860704525
+
+"ours_8_aaa" - Intersection over Union - Greedy
+  Intersection = 44503.7201600729
+  Union = 66161.2798399271
+  IoU = 0.6726550675523018
+
+"ours_9_aaa" - Intersection over Union - Greedy
+  Intersection = 162245.25255360227
+  Union = 262227.7474463977
+  IoU = 0.6187188584486736
+
+"ours_10_aaa" - Intersection over Union - Greedy
+  Intersection = 56964.33452868834
+  Union = 84690.66547131164
+  IoU = 0.672616447298842
+
+"ours_11_aaa" - Intersection over Union - Greedy
+  Intersection = 4945.238052379921
+  Union = 6488.261947620081
+  IoU = 0.7621822442285724
+
+"ours_11_aaa" - Intersection over Union - Dijkstra
+  Intersection = 3387.705882352941
+  Union = 7070.294117647059
+  IoU = 0.4791463871209285
+
+"ours_13_aaa" - Intersection over Union - Greedy
+  Intersection = 28460.197857889238
+  Union = 39249.80214211076
+  IoU = 0.7251042375919278
+
+"ours_14_aaa" - Intersection over Union - Greedy
+  Intersection = 6258.860389610389
+  Union = 8337.139610389611
+  IoU = 0.7507203527947038
+
+"ours_14_aaa" - Intersection over Union - Dijkstra
+  Intersection = 5302.14705882353
+  Union = 8600.85294117647
+  IoU = 0.6164675870040249
+
+"ours_16_aaa" - Intersection over Union - Greedy
+  Intersection = 7285.636485286424
+  Union = 10461.363514713576
+  IoU = 0.6964327809696517
+
+"ours_16_aaa" - Intersection over Union - Dijkstra
+  Intersection = 5949.595
+  Union = 10809.405
+  IoU = 0.5504091113248138
+
+"ours_17_aaa" - Intersection over Union - Greedy
+  Intersection = 38114.77987244098
+  Union = 47950.220127559
+  IoU = 0.7948822710520743
+
+"ours_18_aaa" - Intersection over Union - Greedy
+  Intersection = 11914.208653887303
+  Union = 17243.791346112695
+  IoU = 0.6909274425066125
+
+"ours_22_aaa" - Intersection over Union - Greedy
+  Intersection = 79161.76235138321
+  Union = 138063.23764861675
+  IoU = 0.5733732143299214
+
+"ours_23_aaa" - Intersection over Union - Greedy
+  Intersection = 27251.150174505878
+  Union = 52271.849825494115
+  IoU = 0.5213351022678921
+
+"ours_24_aaa" - Intersection over Union - Greedy
+  Intersection = 74565.55293473863
+  Union = 114404.94706526138
+  IoU = 0.651768606581351
+
+"ours_25_aaa" - Intersection over Union - Greedy
+  Intersection = 31618.829232918655
+  Union = 43540.17076708135
+  IoU = 0.7261990175018823
+
+"ours_26_aaa" - Intersection over Union - Greedy
+  Intersection = 33431.47482050209
+  Union = 104749.5251794979
+  IoU = 0.3191563375892559
+
+"ours_27_aaa" - Intersection over Union - Greedy
+  Intersection = 21974.717982015
+  Union = 35168.282017984995
+  IoU = 0.6248447953976589
+
+"ours_28_aaa" - Intersection over Union - Greedy
+  Intersection = 11195.707884277474
+  Union = 15905.79211572253
+  IoU = 0.7038761605095265
+
+"ours_30_aaa" - Intersection over Union - Greedy
+  Intersection = 23455.820780595317
+  Union = 34917.17921940468
+  IoU = 0.671755889363483
+
+"ours_31_aaa" - Intersection over Union - Greedy
+  Intersection = 24454.635991984167
+  Union = 35831.36400801584
+  IoU = 0.6824924662793584
+
+"ours_32_aaa" - Intersection over Union - Greedy
+  Intersection = 4272.0
+  Union = 6974.5
+  IoU = 0.6125170263101297
+
+"ours_33_aaa" - Intersection over Union - Greedy
+  Intersection = 91923.39013813042
+  Union = 128876.60986186958
+  IoU = 0.7132666683012088
+
+"ours_35_aaa" - Intersection over Union - Greedy
+  Intersection = 51578.08385688187
+  Union = 101838.91614311816
+  IoU = 0.506467329094481
+
+
+
+AVERAGE IoU
+  Greedy = 0.6597840117919699
+  Dijkstra = 0.6175459636200202
