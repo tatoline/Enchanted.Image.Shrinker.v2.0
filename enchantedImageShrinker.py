@@ -144,10 +144,10 @@ def getEnergyOfUniquePixel(laplacianImage2D, iterator, pathFinder, usedPixels, p
 
 
 
-def DetermineRecalculationPixels(recalculationStartPixels, usedPixels, routeAndSumOfEnergyPoints, imageWidth):
+def DetermineRecalculationPixels(recalculationStartPixels, usedPixels, routeAndSumOfEnergyPoints, imageWidth, greedyVersion = 2):
     lastIndexOfUsedPixel = len(usedPixels) - 1  # This will be used for getting the last used/marked/deleted route
 
-    if len(usedPixels) == 0:  # If no usedPixels, that means retargeting process just started. So all energy points must be calculated
+    if len(usedPixels) == 0 or greedyVersion == 1:  # If no usedPixels, that means retargeting process just started. So all energy points must be calculated
         recalculationStartPixels = list(range(imageWidth))
     else:
         for j in range(1, len(usedPixels[0])):  # imageHeight
@@ -162,7 +162,7 @@ def DetermineRecalculationPixels(recalculationStartPixels, usedPixels, routeAndS
 
 
 
-def EnergyPointsWithGreedySearch(laplacianImage2D, usedPixels, processNumber, routeAndSumOfEnergyPoints, energyPoints, path):
+def EnergyPointsWithGreedySearch(laplacianImage2D, usedPixels, processNumber, routeAndSumOfEnergyPoints, energyPoints, path, greedyVersion = 2):
     imageHeight = len(laplacianImage2D)
     imageWidth = len(laplacianImage2D[0])
 
@@ -174,7 +174,7 @@ def EnergyPointsWithGreedySearch(laplacianImage2D, usedPixels, processNumber, ro
                                    #   algorithm won't calculate all the energy points of the image but
                                    #   will calculate sum of energy points for only if a route includes one of
                                    #   pixel of the removed/marked path
-    recalculationStartPixels = DetermineRecalculationPixels(recalculationStartPixels, usedPixels, routeAndSumOfEnergyPoints, imageWidth)
+    recalculationStartPixels = DetermineRecalculationPixels(recalculationStartPixels, usedPixels, routeAndSumOfEnergyPoints, imageWidth, greedyVersion=greedyVersion)
     recalculationStartPixelsCounter = 0  # This is for user interface only
     #optimizedImageWidthList = list(range(imageWidth)) if len(recalculationStartPixels) == 0 else recalculationStartPixels
     # For the start, optimizedImageWidth will be equal to imageWidth since we want algorithm to calculate all the
@@ -296,7 +296,8 @@ def retargetWithGreedy(packForGreedy):
         packForGreedy["processNumber"],
         packForGreedy["routeAndSumOfEnergyPoints"],
         packForGreedy["energyPoints"],
-        packForGreedy["path"]
+        packForGreedy["path"],
+        packForGreedy["greedyVersion"]
     )
 
 
@@ -419,7 +420,7 @@ def completeRetargetProcessForDijkstra(retargetedImage, pathForPainting, pathFor
 
 
 
-def ImageRetarget(retargetedImageOriginal, pixelNumber, retargetMethod = "g"):
+def ImageRetarget(retargetedImageOriginal, pixelNumber, retargetMethod = "g", greedyVersion = 2):
     if retargetMethod == "d" or retargetMethod == "dijkstra":
         retargetMethodName = "Dijkstra"
     elif retargetMethod == "g" or retargetMethod == "greedy":
@@ -461,7 +462,8 @@ def ImageRetarget(retargetedImageOriginal, pixelNumber, retargetMethod = "g"):
                 "processNumber": p,
                 "routeAndSumOfEnergyPoints": routeAndSumOfEnergyPoints,
                 "energyPoints": energyPoints,
-                "path": path
+                "path": path,
+                "greedyVersion": greedyVersion
             }
 
             routeAndSumOfEnergyPoints = retargetWithGreedy(packForGreedy) # This 2D array shows to route for each column and sum of energy points on last row
@@ -543,9 +545,9 @@ def ImageRetarget(retargetedImageOriginal, pixelNumber, retargetMethod = "g"):
     endTime = datetime.now()
     processTime = endTime - startTime
     imageName = retargetedImageOriginal.imageDirectory.split('/')[-1]
-    statisticsFileSaveName = imageName + "_" + retargetMethodName
+    statisticsFileSaveName = imageName + "_" + retargetMethodName + ((" (V" + str(greedyVersion) + ")") if retargetMethodName == "Greedy" else "")
     statistics = "Image name: " + imageName
-    statistics += "\nRetarget method: " + retargetMethodName
+    statistics += "\nRetarget method: " + retargetMethodName + ((" (V" + str(greedyVersion) + ")") if retargetMethodName == "Greedy" else "")
     statistics += "\nRetarget pixels: " + str(pixelNumber)
     statistics += "\n\nStart time: " + startTime.strftime("%H:%M:%S (.%f)")
     statistics += "\nEnd time: " + endTime.strftime("%H:%M:%S (.%f)")
@@ -558,7 +560,7 @@ def ImageRetarget(retargetedImageOriginal, pixelNumber, retargetMethod = "g"):
 
 
 
-def readFromDirectory(directory, retargetMethod = 'g', skip = 0):
+def readFromDirectory(directory, retargetMethod = 'g', skip = 0, greedyVersion = 2, imageSave = True):
     if retargetMethod == "d" or retargetMethod == "dijkstra":
         retargetMethodName = "Dijkstra"
     elif retargetMethod == "g" or retargetMethod == "greedy":
@@ -576,17 +578,18 @@ def readFromDirectory(directory, retargetMethod = 'g', skip = 0):
             continue
         retargetedImageObject = RetargetedImage(directory + "/" + images[i])
         retargetPixelNumber = retargetedImageObject.imageWidth - retargetedImageObject.imageHeight
-        ImageRetarget(retargetedImageObject, retargetPixelNumber, retargetMethod)  # How many pixel you want to be retargeted
+        ImageRetarget(retargetedImageObject, retargetPixelNumber, retargetMethod, greedyVersion=greedyVersion)  # How many pixel you want to be retargeted
 
         imageExtension = images[i].split(".").pop()
         imageNameAndExtension = []
         imageNameAndExtension.append(images[i][:len(images[i]) - len(imageExtension)])
         imageNameAndExtension.append(imageExtension)
 
-        retargetedImageObject.showMarkedImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_MarkedImage.{imageNameAndExtension[1]}")
-        retargetedImageObject.showLaplacianImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_LaplacianImage.{imageNameAndExtension[1]}")
-        retargetedImageObject.showMarkedLaplacianImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_MarkedLaplacianImage.{imageNameAndExtension[1]}")
-        retargetedImageObject.showRetargetedImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_RetargetedImage.{imageNameAndExtension[1]}")
+        if imageSave:
+            retargetedImageObject.showMarkedImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_MarkedImage.{imageNameAndExtension[1]}")
+            retargetedImageObject.showLaplacianImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_LaplacianImage.{imageNameAndExtension[1]}")
+            retargetedImageObject.showMarkedLaplacianImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_MarkedLaplacianImage.{imageNameAndExtension[1]}")
+            retargetedImageObject.showRetargetedImage("fsave", f"{imageNameAndExtension[0]}_{retargetMethodName}_RetargetedImage.{imageNameAndExtension[1]}")
 
         print(f"\n{i+1} of {len(images)} images' retarget process COMPLETED!\n")
 
