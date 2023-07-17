@@ -2,7 +2,7 @@
 
 A terminal program to change image ratio with using Seam Carving. There are two different shortest path algorithms which are optimized first-level greedy and Dijkstra.
 
-![](https://github.com/tatoline/Enchanted.Image.Shrinker.v2.0/blob/master/result.gif)
+![](https://github.com/tatoline/Enchanted.Image.Shrinker.v2.0/blob/main/result.gif)
 
 ## Usage of program
 
